@@ -1,3 +1,140 @@
-<!doctype html><meta charset="utf-8"><title>ValueVault Admin</title>
-<h1>ValueVault Admin</h1>
-<p>Placeholder page. We’ll paste the real admin UI here next.</p>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ValueVault Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --bg:#0b1220; --card:#0f172a; --muted:#94a3b8; --fg:#e2e8f0; --accent:#6366f1; }
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial;}
+    .wrap{max-width:900px;margin:40px auto;padding:24px;}
+    .card{background:var(--card);border:1px solid #1f2937;border-radius:12px;padding:20px;}
+    h1{font-size:28px;margin:0 0 14px;}
+    p{color:var(--muted);margin:8px 0 16px;}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+    input[type="email"]{flex:1;min-width:260px;padding:12px 14px;border-radius:10px;border:1px solid #263143;background:#0b1220;color:var(--fg);}
+    button{padding:10px 14px;border-radius:10px;border:1px solid #303a55;background:#19233d;color:var(--fg);cursor:pointer}
+    button.primary{background:var(--accent);border-color:var(--accent);color:white;font-weight:600}
+    .ok{color:#10b981;font-weight:600}
+    .warn{color:#f59e0b}
+    .err{color:#ef4444}
+    .spacer{height:12px}
+    .tag{display:inline-block;background:#12203a;border:1px solid #2a3b66;border-radius:999px;padding:6px 10px;color:#b6c2d2;margin-right:8px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>ValueVault Admin</h1>
+    <p>Secure admin panel using Supabase Magic Link auth. No passwords. 🎯</p>
+
+    <!-- AUTH CARD -->
+    <div id="auth-card" class="card" style="display:none">
+      <h3>Sign in</h3>
+      <p>Enter your email and we'll send a one-time magic link.</p>
+      <div class="row">
+        <input id="email" type="email" placeholder="you@example.com" />
+        <button id="send" class="primary">Send magic link</button>
+      </div>
+      <div class="spacer"></div>
+      <div id="auth-status" class="warn"></div>
+    </div>
+
+    <!-- APP CARD (visible after sign-in) -->
+    <div id="app-card" class="card" style="display:none">
+      <div class="row" style="justify-content:space-between">
+        <div>
+          <div class="tag" id="whoami">Signed in</div>
+          <div class="tag" id="envtag">Live</div>
+        </div>
+        <button id="signout">Sign out</button>
+      </div>
+      <div class="spacer"></div>
+      <h3>You’re signed in ✅</h3>
+      <p>This page is live-hosted on GitHub Pages. You can now add admin controls here
+         (e.g., sport/market toggles, “Recompute MV”, etc.).</p>
+      <ul>
+        <li>If you didn’t already: in Supabase → <b>Authentication → URL Configuration</b>, be sure
+            the <b>Site URL</b> includes this page’s URL.</li>
+        <li>You can keep this page private by only sending magic links to your own email(s).</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Supabase JS v2 -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script>
+    // 1) FILL THESE IN (Project URL and anon key from Supabase → Settings → API)
+    const SUPABASE_URL = 'https://hsrwywwxiwmygorermcz.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzcnd5d3d4aXdteWdvcmVybWN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxMzY0ODMsImV4cCI6MjA3MjcxMjQ4M30.ER5soMiKmgcjLOgBI9eulivTf8XHmqX5YetFnerg3XI';
+
+    // 2) Create client
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const authCard = document.getElementById('auth-card');
+    const appCard  = document.getElementById('app-card');
+    const authStatus = document.getElementById('auth-status');
+    const sendBtn = document.getElementById('send');
+    const emailEl = document.getElementById('email');
+    const whoami = document.getElementById('whoami');
+    const signoutBtn = document.getElementById('signout');
+
+    // helper to show cards
+    function showAuth() {
+      authCard.style.display = '';
+      appCard.style.display = 'none';
+    }
+    function showApp(session) {
+      whoami.textContent = `Signed in: ${session?.user?.email ?? 'unknown'}`;
+      authCard.style.display = 'none';
+      appCard.style.display = '';
+    }
+
+    // 3) On load, check if already signed in (or returned from magic link)
+    (async () => {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) {
+        showApp(session);
+      } else {
+        showAuth();
+      }
+    })();
+
+    // 4) React to auth state changes (e.g., right after clicking the magic link)
+    sb.auth.onAuthStateChange(async (event, session) => {
+      if (session) showApp(session);
+    });
+
+    // 5) Send magic link
+    sendBtn.addEventListener('click', async () => {
+      const email = (emailEl.value || '').trim();
+      if (!email) {
+        authStatus.textContent = 'Please enter a valid email.';
+        authStatus.className = 'err';
+        return;
+      }
+      authStatus.textContent = 'Sending…';
+      authStatus.className = 'warn';
+      const { error } = await sb.auth.signInWithOtp({
+        email,
+        options: {
+          // This should be exactly this admin.html URL
+          emailRedirectTo: window.location.href
+        }
+      });
+      if (error) {
+        authStatus.textContent = 'Error: ' + error.message;
+        authStatus.className = 'err';
+      } else {
+        authStatus.textContent = 'Magic link sent! Check your inbox.';
+        authStatus.className = 'ok';
+      }
+    });
+
+    // 6) Sign out
+    signoutBtn.addEventListener('click', async () => {
+      await sb.auth.signOut();
+      showAuth();
+    });
+  </script>
+</body>
+</html>
