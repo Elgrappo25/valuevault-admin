@@ -2,195 +2,354 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ValueVault Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    :root { color-scheme: light dark; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 24px; }
-    h1 { margin: 0 0 12px; font-size: 28px; }
-    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap }
-    .btn { padding:10px 14px; border-radius:8px; border:0; font-weight:600; cursor:pointer; }
-    .btn.primary { background:#6c63ff; color:#fff; }
-    .btn.outline { background:transparent; border:1px solid color-mix(in hsl, CanvasText 20%, transparent); }
-    .card { background: color-mix(in hsl, Canvas 92%, transparent);
-            border: 1px solid color-mix(in hsl, CanvasText 12%, transparent);
-            border-radius: 12px; padding: 18px; margin: 14px 0; }
-    .muted { color: color-mix(in hsl, CanvasText 55%, transparent); }
-    table { width:100%; border-collapse: collapse; margin-top: 8px; }
-    th, td { padding:10px 8px; border-top:1px solid color-mix(in hsl, CanvasText 12%, transparent); }
-    th { text-align:left; font-size:14px; color: color-mix(in hsl, CanvasText 60%, transparent); }
-    .switch { display:inline-flex; gap:8px; align-items:center; cursor:pointer; }
-    .status { margin-left:10px; font-weight:600; }
-    .ok { color:#1a7f37; } .err { color:#b00020; }
-    .pill { font-size:12px; padding:4px 8px; border-radius:999px; background: color-mix(in hsl, CanvasText 8%, transparent); }
+    :root {
+      --bg: #0b0e14; --panel:#131824; --text:#f4f6fb; --muted:#9aa3b2;
+      --brand:#6d7cff; --ok:#16a34a; --warn:#f59e0b; --danger:#ef4444; --line:#1f2534;
+    }
+    html,body { height:100%; }
+    body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji"; }
+    .wrap { max-width:1100px; margin:24px auto 64px; padding:0 16px; }
+    h1 { font-size:28px; margin:4px 0 16px; }
+    .muted { color:var(--muted); }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px; }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    .row > * { margin:4px 0; }
+    .btn { border:1px solid var(--line); background:#0f1422; color:var(--text); padding:8px 12px; border-radius:10px; cursor:pointer; }
+    .btn:hover { border-color:#2a334a; }
+    .btn.brand { background:var(--brand); border-color:var(--brand); color:#fff; }
+    .btn.ok { background:var(--ok); border-color:var(--ok); color:#fff; }
+    .btn.warn { background:var(--warn); border-color:var(--warn); color:#0b0e14; }
+    .btn.ghost { background:transparent; }
+    .grid { display:grid; gap:8px; }
+    .tog { display:flex; align-items:center; gap:8px; white-space:nowrap; }
+    .chip { font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid var(--line); color:var(--muted); }
+    .table { width:100%; border-collapse:collapse; font-size:13px; }
+    .table th, .table td { border-bottom:1px solid var(--line); padding:10px 8px; text-align:left; }
+    .table th { color:var(--muted); font-weight:600; position:sticky; top:0; background:var(--panel); }
+    .right { text-align:right; }
+    input[type="checkbox"] { width:18px; height:18px; accent-color: var(--brand); cursor:pointer; }
+    input[type="email"] { width:320px; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:#0f1422; color:var(--text); }
+    .notice { color:#a7f3d0; }
+    .error  { color:#fecaca; }
+    .hr { height:1px; background:var(--line); margin:16px 0; border:0; }
+    .cols { display:grid; grid-template-columns: 1fr; gap:16px; }
+    @media(min-width:960px){ .cols{ grid-template-columns: 1fr 330px; } }
+    .scroll { max-height: 60vh; overflow:auto; border:1px solid var(--line); border-radius:12px; }
+    a.link { color:#a5b4fc; text-decoration:none; }
   </style>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 </head>
 <body>
+<div class="wrap">
   <h1>ValueVault Admin</h1>
+  <p class="muted">Choose which <b>sports</b> to pull and which <b>markets</b> (Moneyline / Spread / Total) to enable. When you’re done, click a “Recompute” button to refresh the materialized views.</p>
 
-  <div class="card" id="signin">
-    <p>Sign in with your magic link to manage sports/markets.</p>
+  <!-- SIGN IN CARD -->
+  <div id="signin" class="card" style="display:none">
+    <h3>Sign in</h3>
+    <p class="muted">Enter your admin email and we’ll email you a magic link.</p>
     <div class="row">
-      <input id="email" type="email" placeholder="you@example.com" style="padding:10px;border-radius:8px;border:1px solid color-mix(in hsl, CanvasText 18%, transparent); min-width:280px" />
-      <button id="send" class="btn primary">Send magic link</button>
+      <input id="email" type="email" placeholder="you@example.com" />
+      <button id="sendLink" class="btn brand">Send magic link</button>
     </div>
-    <div id="authstatus" class="status"></div>
-    <p class="muted">You’ll receive an email from Supabase. Check spam/promotions if you don’t see it.</p>
+    <p class="muted">You’ll receive an email from Supabase — check Spam/Promotions if you don’t see it.</p>
   </div>
 
+  <!-- APP -->
   <div id="app" style="display:none">
-    <div class="row">
-      <div class="pill">Signed in ✅</div>
-      <button id="signout" class="btn outline">Sign out</button>
+
+    <div class="row" style="justify-content:space-between; align-items:center">
+      <div class="row">
+        <span class="chip" id="whoami">Signed in</span>
+        <button id="signout" class="btn ghost">Sign out</button>
+      </div>
+      <div class="row">
+        <button class="btn ok" id="btnReAll">Recompute (All MVs)</button>
+        <button class="btn" id="btnReML">Recompute Moneyline</button>
+        <button class="btn" id="btnReSP">Recompute Spread</button>
+        <button class="btn" id="btnReTO">Recompute Total</button>
+      </div>
     </div>
 
-    <div class="card">
-      <div class="row">
-        <strong>Fetch controls</strong>
-        <span class="muted">Toggle the markets to pull per sport.</span>
+    <div class="hr"></div>
+
+    <div class="cols">
+      <!-- LEFT: TABLE -->
+      <div class="grid">
+        <div class="card">
+          <h3 style="margin-top:0">Sports & Markets</h3>
+          <div class="row" style="justify-content:space-between">
+            <div class="row">
+              <button class="btn" id="allOn">All ON</button>
+              <button class="btn" id="allOff">All OFF</button>
+              <span class="chip">affects all sports & all markets</span>
+            </div>
+            <div class="row">
+              <button class="btn" id="mlOnly">Moneyline only</button>
+              <button class="btn" id="spOnly">Spread only</button>
+              <button class="btn" id="toOnly">Total only</button>
+              <button class="btn" id="allMarkets">All markets</button>
+            </div>
+          </div>
+
+          <div class="scroll" style="margin-top:10px">
+            <table class="table" id="tbl">
+              <thead>
+              <tr>
+                <th style="width:36px"></th>
+                <th>Sport</th>
+                <th class="right">Moneyline</th>
+                <th class="right">Spread</th>
+                <th class="right">Total</th>
+              </tr>
+              </thead>
+              <tbody id="tbody"></tbody>
+            </table>
+          </div>
+          <div class="row" style="justify-content:flex-end; margin-top:10px">
+            <span class="muted" id="saveStatus"></span>
+          </div>
+        </div>
       </div>
-      <div id="status" class="status"></div>
-      <table>
-        <thead>
-          <tr>
-            <th style="width:220px">Sport</th>
-            <th>Moneyline</th>
-            <th>Spread</th>
-            <th>Total</th>
-            <th class="muted">Updated</th>
-          </tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-      </table>
+
+      <!-- RIGHT: PRESETS -->
+      <div class="grid">
+        <div class="card">
+          <h3 style="margin-top:0">One-click Presets</h3>
+          <p class="muted">These switch <b>all sports OFF</b>, then turn the listed sports <b>ON</b> for all three markets.</p>
+          <div class="grid" style="grid-template-columns:1fr; gap:8px">
+            <button class="btn" id="presetNFL">NFL only</button>
+            <button class="btn" id="presetNHL">NHL only</button>
+            <button class="btn" id="presetNFLNHL">NFL + NHL</button>
+            <button class="btn" id="presetMLB">MLB only</button>
+            <button class="btn" id="presetNBA">NBA only</button>
+            <button class="btn" id="presetNCAAB">NCAAB only</button>
+            <button class="btn" id="presetWNBA">WNBA only</button>
+            <button class="btn" id="presetNCAAF">NCAAF only</button>
+            <button class="btn" id="presetSoccerAll">All Soccer (EPL, La Liga, Serie A, Bundesliga, Ligue 1, MLS, UCL)</button>
+            <button class="btn" id="presetSoccerTop6">Soccer Top-6 (EPL, La Liga, Serie A, Bundesliga, Ligue 1, UCL)</button>
+            <button class="btn" id="presetMLS">MLS only</button>
+            <button class="btn" id="presetUCL">UCL only</button>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <span class="chip">After switching, I’ll recompute automatically.</span>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div class="card">
-      <div class="row">
-        <strong>Run data pipeline</strong>
-        <span class="muted">Kick the materialized views after you change toggles.</span>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <button id="recomputeAll" class="btn primary">Recompute (All MVs)</button>
-        <button id="recomputeML"  class="btn outline">Recompute Moneyline</button>
-        <button id="recomputeSP"  class="btn outline">Recompute Spread</button>
-        <button id="recomputeTOT" class="btn outline">Recompute Total</button>
-      </div>
-      <div id="runstatus" class="status"></div>
-    </div>
   </div>
+</div>
 
-  <script type="module">
-    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+<script>
+  // --- CONFIG --- //
+  const SUPABASE_URL = 'https://hsrwywwxiwmygorermcz.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzcnd5d3d4aXdteWdvcmVybWN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxMzY0ODMsImV4cCI6MjA3MjcxMjQ4M30.ER5soMiKmgcjLOgBI9eulivTf8XHmqX5YetFnerg3XI';
+  const EMAIL_REDIRECT = 'https://elgrappo25.github.io/valuevault-admin/admin.html';
 
-    // 🔧 Your Supabase project and anon key
-    const SUPABASE_URL = "https://hsrwywwxiwmygorermcz.supabase.co";
-    const SUPABASE_ANON_KEY =
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzcnd5d3d4aXdteWdvcmVybWN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxMzY0ODMsImV4cCI6MjA3MjcxMjQ4M30.ER5soMiKmgcjLOgBI9eulivTf8XHmqX5YetFnerg3XI";
-    const REDIRECT_TO = "https://elgrappo25.github.io/valuevault-admin/admin.html";
+  // Known / expected sport keys (we’ll filter by what exists in your table)
+  const CATALOG = [
+    {key:'baseball_mlb',          name:'MLB'},
+    {key:'basketball_nba',        name:'NBA'},
+    {key:'basketball_ncaab',      name:'NCAAB'},
+    {key:'basketball_wnba',       name:'WNBA'},
+    {key:'football_nfl',          name:'NFL'},
+    {key:'americanfootball_ncaaf',name:'NCAAF'},
+    {key:'icehockey_nhl',         name:'NHL'},
+    {key:'soccer_epl',            name:'Soccer: EPL'},
+    {key:'soccer_la_liga',        name:'Soccer: La Liga'},   // some projects use soccer_laliga — we’ll match by what exists
+    {key:'soccer_laliga',         name:'Soccer: La Liga'},
+    {key:'soccer_serie_a',        name:'Soccer: Serie A'},
+    {key:'soccer_bundesliga',     name:'Soccer: Bundesliga'},
+    {key:'soccer_ligue_1',        name:'Soccer: Ligue 1'},
+    {key:'soccer_mls',            name:'Soccer: MLS'},
+    {key:'soccer_uefa_champs',    name:'Soccer: UCL'},
+  ];
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: true, detectSessionInUrl: true }
-    });
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    const $ = (s)=>document.querySelector(s);
-    const signin  = $("#signin");
-    const app     = $("#app");
-    const emailEl = $("#email");
-    const sendBtn = $("#send");
-    const authstatus = $("#authstatus");
-    const tbody   = $("#tbody");
-    const status  = $("#status");
-    const runstatus = $("#runstatus");
+  const $ = sel => document.querySelector(sel);
+  const tbody = $('#tbody');
+  const saveStatus = $('#saveStatus');
 
-    function showApp(signedIn){ signin.style.display=signedIn?"none":""; app.style.display=signedIn?"":"none"; }
+  let rows = [];          // current admin_pull_settings
+  let presentKeys = new Set();
 
-    async function refreshTable(){
-      status.textContent = "Loading…";
-      status.className = "status";
-      const { data, error } = await supabase.from("admin_pull_settings").select("*").order("sport_name");
-      if(error){ status.textContent = error.message; status.classList.add("err"); return; }
-      status.textContent = "";
-      tbody.innerHTML = "";
-      data.forEach(row=>{
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${row.sport_name}</td>
-          <td><label class="switch"><input type="checkbox" ${row.moneyline?"checked":""} data-sport="${row.sport_key}" data-col="moneyline"></label></td>
-          <td><label class="switch"><input type="checkbox" ${row.spread?"checked":""}    data-sport="${row.sport_key}" data-col="spread"></label></td>
-          <td><label class="switch"><input type="checkbox" ${row.total?"checked":""}     data-sport="${row.sport_key}" data-col="total"></label></td>
-          <td class="muted">${new Date(row.updated_at).toLocaleString()}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-
-      // Attach toggle handlers
-      tbody.querySelectorAll("input[type=checkbox]").forEach(cb=>{
-        cb.addEventListener("change", async (e)=>{
-          const sport = e.target.dataset.sport;
-          const col   = e.target.dataset.col;
-          const val   = e.target.checked;
-          status.textContent = "Saving…";
-          status.className = "status";
-          const payload = {}; payload[col]=val; payload["updated_at"]=new Date().toISOString();
-          const { error } = await supabase.from("admin_pull_settings")
-            .update(payload)
-            .eq("sport_key", sport);
-          if(error){ status.textContent = "Error: " + error.message; status.classList.add("err"); }
-          else { status.textContent = "Saved"; status.classList.add("ok"); setTimeout(()=>status.textContent="", 1200); }
-        });
-      });
+  async function init() {
+    const { data: session } = await supabase.auth.getSession();
+    if (!session || !session.session) {
+      $('#signin').style.display = '';
+      $('#app').style.display = 'none';
+      wireSignin();
+      return;
     }
+    $('#signin').style.display = 'none';
+    $('#app').style.display = '';
+    $('#whoami').textContent = `Signed in: ${session.session.user.email ?? 'admin'}`;
 
-    // Session bootstrap
-    (async ()=>{
-      const { data:{ session } } = await supabase.auth.getSession();
-      showApp(!!session);
-      if(session) refreshTable();
-    })();
+    $('#signout').onclick = async () => { await supabase.auth.signOut(); location.reload(); };
 
-    // Auth UI
-    sendBtn.addEventListener("click", async ()=>{
-      authstatus.textContent = "";
-      const email = (emailEl.value||"").trim();
-      if(!email){ authstatus.textContent="Please enter your email."; authstatus.className="status err"; return; }
-      sendBtn.disabled=true; sendBtn.textContent="Sending…";
-      try{
+    await loadTable();
+    wireBulk();
+    wirePresets();
+    wireRecompute();
+  }
+
+  function wireSignin() {
+    $('#sendLink').onclick = async () => {
+      const email = $('#email').value.trim();
+      if (!email) return alert('Enter your email');
+      try {
         const { error } = await supabase.auth.signInWithOtp({
-          email, options: { emailRedirectTo: REDIRECT_TO }
+          email,
+          options: { emailRedirectTo: EMAIL_REDIRECT }
         });
-        if(error) throw error;
-        authstatus.textContent = "Magic link sent! Check your inbox.";
-        authstatus.className="status ok";
-      }catch(e){
-        authstatus.textContent = "Error: " + (e.message||e);
-        authstatus.className="status err";
-      }finally{
-        sendBtn.disabled=false; sendBtn.textContent="Send magic link";
+        if (error) throw error;
+        alert('Magic link sent! Check your email.');
+      } catch (e) {
+        console.error(e);
+        alert('Failed to send link. See console.');
       }
-    });
+    };
+  }
 
-    supabase.auth.onAuthStateChange((_evt, session)=>{
-      const signedIn = !!session;
-      showApp(signedIn);
-      if(signedIn) refreshTable();
-    });
+  async function loadTable() {
+    const { data, error } = await supabase
+      .from('admin_pull_settings')
+      .select('sport_key,sport_name,moneyline,spread,total')
+      .order('sport_name');
+    if (error) { console.error(error); alert('Failed to load settings'); return; }
+    rows = data || [];
+    presentKeys = new Set(rows.map(r => r.sport_key));
 
-    $("#signout").addEventListener("click", async ()=>{
-      await supabase.auth.signOut();
-    });
-
-    // Recompute buttons — these call the functions you already granted execute on
-    async function runRpc(fn){
-      runstatus.textContent = "Running " + fn + "…";
-      runstatus.className = "status";
-      const { error } = await supabase.rpc(fn);
-      if(error){ runstatus.textContent = "Error: " + error.message; runstatus.classList.add("err"); }
-      else { runstatus.textContent = "Done ✔"; runstatus.classList.add("ok"); setTimeout(()=>runstatus.textContent="",1400); }
+    tbody.innerHTML = '';
+    for (const r of rows) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td></td>
+        <td>${r.sport_name || r.sport_key}</td>
+        <td class="right"><input type="checkbox" ${r.moneyline ? 'checked':''} data-k="${r.sport_key}" data-f="moneyline"></td>
+        <td class="right"><input type="checkbox" ${r.spread ? 'checked':''} data-k="${r.sport_key}" data-f="spread"></td>
+        <td class="right"><input type="checkbox" ${r.total ? 'checked':''} data-k="${r.sport_key}" data-f="total"></td>
+      `;
+      tbody.appendChild(tr);
     }
-    $("#recomputeAll").addEventListener("click", ()=> runRpc("refresh_all_offers_today"));
-    $("#recomputeML"). addEventListener("click", ()=> runRpc("refresh_mv_moneyline_offers_today"));
-    $("#recomputeSP"). addEventListener("click", ()=> runRpc("refresh_mv_spread_offers_today"));
-    $("#recomputeTOT").addEventListener("click", ()=> runRpc("refresh_mv_total_offers_today"));
-  </script>
+
+    // live toggle handler
+    tbody.addEventListener('change', async (e) => {
+      const el = e.target;
+      if (el.tagName !== 'INPUT') return;
+      const sport_key = el.getAttribute('data-k');
+      const field = el.getAttribute('data-f');
+      const val = !!el.checked;
+      saveStatus.textContent = 'Saving…';
+      const { error } = await supabase
+        .from('admin_pull_settings')
+        .update({ [field]: val })
+        .eq('sport_key', sport_key);
+      if (error) { console.error(error); saveStatus.textContent = 'Save failed'; return; }
+      saveStatus.textContent = 'Saved ✓';
+      setTimeout(()=> saveStatus.textContent = '', 1200);
+    }, { once:true }); // attach once to avoid stacking; the handler persists via event delegate
+  }
+
+  // ---------- BULK + PRESETS ---------- //
+  async function updateAllMarkets(valML, valSP, valTO, scopeKeys = null) {
+    const keys = scopeKeys ?? rows.map(r => r.sport_key);
+    if (!keys.length) return;
+    const { error } = await supabase
+      .from('admin_pull_settings')
+      .update({ moneyline: valML, spread: valSP, total: valTO })
+      .in('sport_key', keys);
+    if (error) throw error;
+  }
+  async function setAll(val) { await updateAllMarkets(val, val, val); await recomputeAll(); await loadTable(); }
+  async function setMarkets(type) {
+    if (type==='ml') await updateAllMarkets(true,false,false);
+    if (type==='sp') await updateAllMarkets(false,true,false);
+    if (type==='to') await updateAllMarkets(false,false,true);
+    if (type==='all') await updateAllMarkets(true,true,true);
+    await recomputeAll(); await loadTable();
+  }
+  async function applyPreset(sportKeys) {
+    // keep only keys that actually exist in your table
+    const filtered = sportKeys.filter(k => presentKeys.has(k));
+    // all off first
+    await updateAllMarkets(false,false,false);
+    if (filtered.length) await updateAllMarkets(true,true,true, filtered);
+    await recomputeAll(); await loadTable();
+  }
+
+  function k(...keys){ return keys; } // tiny helper to make arrays shorter
+
+  function wireBulk(){
+    $('#allOn').onclick    = () => setAll(true);
+    $('#allOff').onclick   = () => setAll(false);
+    $('#mlOnly').onclick   = () => setMarkets('ml');
+    $('#spOnly').onclick   = () => setMarkets('sp');
+    $('#toOnly').onclick   = () => setMarkets('to');
+    $('#allMarkets').onclick = () => setMarkets('all');
+  }
+
+  function wirePresets(){
+    // Common sets
+    const NFL     = k('football_nfl');
+    const NHL     = k('icehockey_nhl');
+    const MLB     = k('baseball_mlb');
+    const NBA     = k('basketball_nba');
+    const NCAAB   = k('basketball_ncaab');
+    const WNBA    = k('basketball_wnba');
+    const NCAAF   = k('americanfootball_ncaaf');
+
+    // Soccer variants (use both possible La Liga keys)
+    const SOCCER_TOP6 = k('soccer_epl','soccer_la_liga','soccer_laliga','soccer_serie_a','soccer_bundesliga','soccer_ligue_1','soccer_uefa_champs');
+    const SOCCER_ALL  = k(...SOCCER_TOP6,'soccer_mls');
+    const MLS         = k('soccer_mls');
+    const UCL         = k('soccer_uefa_champs');
+
+    $('#presetNFL').onclick      = () => applyPreset(NFL);
+    $('#presetNHL').onclick      = () => applyPreset(NHL);
+    $('#presetNFLNHL').onclick   = () => applyPreset([...NFL, ...NHL]);
+    $('#presetMLB').onclick      = () => applyPreset(MLB);
+    $('#presetNBA').onclick      = () => applyPreset(NBA);
+    $('#presetNCAAB').onclick    = () => applyPreset(NCAAB);
+    $('#presetWNBA').onclick     = () => applyPreset(WNBA);
+    $('#presetNCAAF').onclick    = () => applyPreset(NCAAF);
+    $('#presetSoccerAll').onclick= () => applyPreset(SOCCER_ALL);
+    $('#presetSoccerTop6').onclick=() => applyPreset(SOCCER_TOP6);
+    $('#presetMLS').onclick      = () => applyPreset(MLS);
+    $('#presetUCL').onclick      = () => applyPreset(UCL);
+  }
+
+  // ---------- RECOMPUTE ---------- //
+  async function rpcTry(name){
+    try{
+      const { error } = await supabase.rpc(name);
+      if (error) throw error;
+      return true;
+    }catch(e){ return false; }
+  }
+  async function recomputeAll(){
+    // Prefer a single "all" function if you created it; otherwise run three
+    const okAll = await rpcTry('refresh_all_offers_today');
+    if (!okAll){
+      await rpcTry('refresh_mv_moneyline_offers_today');
+      await rpcTry('refresh_mv_spread_offers_today');
+      await rpcTry('refresh_mv_total_offers_today');
+    }
+  }
+  function wireRecompute(){
+    $('#btnReAll').onclick = async () => { await recomputeAll(); alert('Recomputed all MVs'); };
+    $('#btnReML').onclick  = async () => { await rpcTry('refresh_mv_moneyline_offers_today'); alert('Moneyline MV recomputed'); };
+    $('#btnReSP').onclick  = async () => { await rpcTry('refresh_mv_spread_offers_today'); alert('Spread MV recomputed'); };
+    $('#btnReTO').onclick  = async () => { await rpcTry('refresh_mv_total_offers_today'); alert('Total MV recomputed'); };
+  }
+
+  // kick off
+  init();
+</script>
 </body>
 </html>
