@@ -4,43 +4,79 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ValueVault Admin</title>
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
   <style>
     :root { color-scheme: light dark; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 32px; }
-    .card { max-width: 520px; background: color-mix(in hsl, Canvas 92%, transparent);
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 24px; }
+    h1 { margin: 0 0 12px; font-size: 28px; }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap }
+    .btn { padding:10px 14px; border-radius:8px; border:0; font-weight:600; cursor:pointer; }
+    .btn.primary { background:#6c63ff; color:#fff; }
+    .btn.outline { background:transparent; border:1px solid color-mix(in hsl, CanvasText 20%, transparent); }
+    .card { background: color-mix(in hsl, Canvas 92%, transparent);
             border: 1px solid color-mix(in hsl, CanvasText 12%, transparent);
-            border-radius: 12px; padding: 20px; }
-    h1 { margin: 0 0 16px; font-size: 28px; }
-    label { display:block; font-weight:600; margin: 12px 0 6px; }
-    input[type="email"] { width:100%; padding:12px; border-radius:8px;
-      border:1px solid color-mix(in hsl, CanvasText 18%, transparent); font-size:16px; }
-    button { margin-top:12px; padding:10px 14px; border-radius:8px; border:0;
-      background:#6c63ff; color:white; font-weight:600; cursor:pointer; }
-    button:disabled { opacity:.6; cursor:not-allowed; }
-    .hint { margin-top:10px; color:color-mix(in hsl, CanvasText 60%, transparent); font-size:14px; }
-    .msg { margin-top:12px; font-weight:600; }
-    .ok { color: #1a7f37; } .err { color: #b00020; }
+            border-radius: 12px; padding: 18px; margin: 14px 0; }
+    .muted { color: color-mix(in hsl, CanvasText 55%, transparent); }
+    table { width:100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { padding:10px 8px; border-top:1px solid color-mix(in hsl, CanvasText 12%, transparent); }
+    th { text-align:left; font-size:14px; color: color-mix(in hsl, CanvasText 60%, transparent); }
+    .switch { display:inline-flex; gap:8px; align-items:center; cursor:pointer; }
+    .status { margin-left:10px; font-weight:600; }
+    .ok { color:#1a7f37; } .err { color:#b00020; }
+    .pill { font-size:12px; padding:4px 8px; border-radius:999px; background: color-mix(in hsl, CanvasText 8%, transparent); }
   </style>
 </head>
 <body>
   <h1>ValueVault Admin</h1>
 
   <div class="card" id="signin">
-    <p>Sign in with a magic link to manage which sports/markets to pull.</p>
-
-    <label for="email">Admin email</label>
-    <input id="email" type="email" placeholder="you@example.com" autocomplete="email" />
-
-    <button id="send">Send magic link</button>
-    <div class="hint">You’ll receive an email from Supabase — check Spam/Promotions if you don’t see it.</div>
-    <div id="status" class="msg"></div>
+    <p>Sign in with your magic link to manage sports/markets.</p>
+    <div class="row">
+      <input id="email" type="email" placeholder="you@example.com" style="padding:10px;border-radius:8px;border:1px solid color-mix(in hsl, CanvasText 18%, transparent); min-width:280px" />
+      <button id="send" class="btn primary">Send magic link</button>
+    </div>
+    <div id="authstatus" class="status"></div>
+    <p class="muted">You’ll receive an email from Supabase. Check spam/promotions if you don’t see it.</p>
   </div>
 
-  <div class="card" id="signedin" style="display:none">
-    <div class="ok">You’re signed in ✅</div>
-    <p>We’ll put the actual controls here next (sport/market toggles, run buttons, etc.).</p>
-    <button id="signout">Sign out</button>
+  <div id="app" style="display:none">
+    <div class="row">
+      <div class="pill">Signed in ✅</div>
+      <button id="signout" class="btn outline">Sign out</button>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <strong>Fetch controls</strong>
+        <span class="muted">Toggle the markets to pull per sport.</span>
+      </div>
+      <div id="status" class="status"></div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:220px">Sport</th>
+            <th>Moneyline</th>
+            <th>Spread</th>
+            <th>Total</th>
+            <th class="muted">Updated</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <strong>Run data pipeline</strong>
+        <span class="muted">Kick the materialized views after you change toggles.</span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button id="recomputeAll" class="btn primary">Recompute (All MVs)</button>
+        <button id="recomputeML"  class="btn outline">Recompute Moneyline</button>
+        <button id="recomputeSP"  class="btn outline">Recompute Spread</button>
+        <button id="recomputeTOT" class="btn outline">Recompute Total</button>
+      </div>
+      <div id="runstatus" class="status"></div>
+    </div>
   </div>
 
   <script type="module">
@@ -50,70 +86,111 @@
     const SUPABASE_URL = "https://hsrwywwxiwmygorermcz.supabase.co";
     const SUPABASE_ANON_KEY =
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzcnd5d3d4aXdteWdvcmVybWN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxMzY0ODMsImV4cCI6MjA3MjcxMjQ4M30.ER5soMiKmgcjLOgBI9eulivTf8XHmqX5YetFnerg3XI";
-
-    // Where the magic link should return after clicking in email
     const REDIRECT_TO = "https://elgrappo25.github.io/valuevault-admin/admin.html";
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession: true, detectSessionInUrl: true }
     });
 
-    const $ = (s) => document.querySelector(s);
+    const $ = (s)=>document.querySelector(s);
+    const signin  = $("#signin");
+    const app     = $("#app");
     const emailEl = $("#email");
     const sendBtn = $("#send");
-    const statusEl = $("#status");
-    const signin = $("#signin");
-    const signedin = $("#signedin");
-    const signoutBtn = $("#signout");
+    const authstatus = $("#authstatus");
+    const tbody   = $("#tbody");
+    const status  = $("#status");
+    const runstatus = $("#runstatus");
 
-    function showSignedInUI(signedIn) {
-      signin.style.display = signedIn ? "none" : "";
-      signedin.style.display = signedIn ? "" : "none";
+    function showApp(signedIn){ signin.style.display=signedIn?"none":""; app.style.display=signedIn?"":"none"; }
+
+    async function refreshTable(){
+      status.textContent = "Loading…";
+      status.className = "status";
+      const { data, error } = await supabase.from("admin_pull_settings").select("*").order("sport_name");
+      if(error){ status.textContent = error.message; status.classList.add("err"); return; }
+      status.textContent = "";
+      tbody.innerHTML = "";
+      data.forEach(row=>{
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${row.sport_name}</td>
+          <td><label class="switch"><input type="checkbox" ${row.moneyline?"checked":""} data-sport="${row.sport_key}" data-col="moneyline"></label></td>
+          <td><label class="switch"><input type="checkbox" ${row.spread?"checked":""}    data-sport="${row.sport_key}" data-col="spread"></label></td>
+          <td><label class="switch"><input type="checkbox" ${row.total?"checked":""}     data-sport="${row.sport_key}" data-col="total"></label></td>
+          <td class="muted">${new Date(row.updated_at).toLocaleString()}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Attach toggle handlers
+      tbody.querySelectorAll("input[type=checkbox]").forEach(cb=>{
+        cb.addEventListener("change", async (e)=>{
+          const sport = e.target.dataset.sport;
+          const col   = e.target.dataset.col;
+          const val   = e.target.checked;
+          status.textContent = "Saving…";
+          status.className = "status";
+          const payload = {}; payload[col]=val; payload["updated_at"]=new Date().toISOString();
+          const { error } = await supabase.from("admin_pull_settings")
+            .update(payload)
+            .eq("sport_key", sport);
+          if(error){ status.textContent = "Error: " + error.message; status.classList.add("err"); }
+          else { status.textContent = "Saved"; status.classList.add("ok"); setTimeout(()=>status.textContent="", 1200); }
+        });
+      });
     }
 
-    // On load, show the correct state if a session already exists
-    (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      showSignedInUI(!!session);
+    // Session bootstrap
+    (async ()=>{
+      const { data:{ session } } = await supabase.auth.getSession();
+      showApp(!!session);
+      if(session) refreshTable();
     })();
 
-    sendBtn.addEventListener("click", async () => {
-      statusEl.textContent = "";
-      statusEl.className = "msg";
-      const email = (emailEl.value || "").trim();
-      if (!email) {
-        statusEl.textContent = "Please enter your email.";
-        statusEl.classList.add("err");
-        return;
-      }
-      sendBtn.disabled = true;
-      sendBtn.textContent = "Sending…";
-      try {
+    // Auth UI
+    sendBtn.addEventListener("click", async ()=>{
+      authstatus.textContent = "";
+      const email = (emailEl.value||"").trim();
+      if(!email){ authstatus.textContent="Please enter your email."; authstatus.className="status err"; return; }
+      sendBtn.disabled=true; sendBtn.textContent="Sending…";
+      try{
         const { error } = await supabase.auth.signInWithOtp({
-          email,
-          options: { emailRedirectTo: REDIRECT_TO }
+          email, options: { emailRedirectTo: REDIRECT_TO }
         });
-        if (error) throw error;
-        statusEl.textContent = "Magic link sent! Check your inbox.";
-        statusEl.classList.add("ok");
-      } catch (e) {
-        statusEl.textContent = `Error: ${e.message || e}`;
-        statusEl.classList.add("err");
-      } finally {
-        sendBtn.disabled = false;
-        sendBtn.textContent = "Send magic link";
+        if(error) throw error;
+        authstatus.textContent = "Magic link sent! Check your inbox.";
+        authstatus.className="status ok";
+      }catch(e){
+        authstatus.textContent = "Error: " + (e.message||e);
+        authstatus.className="status err";
+      }finally{
+        sendBtn.disabled=false; sendBtn.textContent="Send magic link";
       }
     });
 
-    signoutBtn.addEventListener("click", async () => {
-      await supabase.auth.signOut();
-      showSignedInUI(false);
+    supabase.auth.onAuthStateChange((_evt, session)=>{
+      const signedIn = !!session;
+      showApp(signedIn);
+      if(signedIn) refreshTable();
     });
 
-    // When redirected back with a session in the URL, Supabase handles it (detectSessionInUrl:true).
-    supabase.auth.onAuthStateChange((_evt, session) => {
-      showSignedInUI(!!session);
+    $("#signout").addEventListener("click", async ()=>{
+      await supabase.auth.signOut();
     });
+
+    // Recompute buttons — these call the functions you already granted execute on
+    async function runRpc(fn){
+      runstatus.textContent = "Running " + fn + "…";
+      runstatus.className = "status";
+      const { error } = await supabase.rpc(fn);
+      if(error){ runstatus.textContent = "Error: " + error.message; runstatus.classList.add("err"); }
+      else { runstatus.textContent = "Done ✔"; runstatus.classList.add("ok"); setTimeout(()=>runstatus.textContent="",1400); }
+    }
+    $("#recomputeAll").addEventListener("click", ()=> runRpc("refresh_all_offers_today"));
+    $("#recomputeML"). addEventListener("click", ()=> runRpc("refresh_mv_moneyline_offers_today"));
+    $("#recomputeSP"). addEventListener("click", ()=> runRpc("refresh_mv_spread_offers_today"));
+    $("#recomputeTOT").addEventListener("click", ()=> runRpc("refresh_mv_total_offers_today"));
   </script>
 </body>
 </html>
