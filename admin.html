@@ -2,113 +2,118 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ValueVault Admin</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 40px; }
-    .card { max-width: 520px; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,.04); }
-    label { display:block; font-weight:600; margin-bottom:6px; }
-    input[type="email"] { width:100%; padding:10px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:16px; }
-    button { background:#635bff; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:600; cursor:pointer; }
-    button[disabled]{opacity:.5; cursor:not-allowed;}
-    .row { display:flex; gap:10px; align-items:center; margin-top:12px; }
-    .muted { color:#6b7280; font-size:14px; }
-    .ok { color:#059669; font-weight:700; }
-    .err { color:#b91c1c; }
-    .spacer{height:10px}
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 32px; }
+    .card { max-width: 520px; background: color-mix(in hsl, Canvas 92%, transparent);
+            border: 1px solid color-mix(in hsl, CanvasText 12%, transparent);
+            border-radius: 12px; padding: 20px; }
+    h1 { margin: 0 0 16px; font-size: 28px; }
+    label { display:block; font-weight:600; margin: 12px 0 6px; }
+    input[type="email"] { width:100%; padding:12px; border-radius:8px;
+      border:1px solid color-mix(in hsl, CanvasText 18%, transparent); font-size:16px; }
+    button { margin-top:12px; padding:10px 14px; border-radius:8px; border:0;
+      background:#6c63ff; color:white; font-weight:600; cursor:pointer; }
+    button:disabled { opacity:.6; cursor:not-allowed; }
+    .hint { margin-top:10px; color:color-mix(in hsl, CanvasText 60%, transparent); font-size:14px; }
+    .msg { margin-top:12px; font-weight:600; }
+    .ok { color: #1a7f37; } .err { color: #b00020; }
   </style>
 </head>
 <body>
   <h1>ValueVault Admin</h1>
-  <div id="app" class="card">
-    <div id="signedOut">
-      <p class="muted">Sign in with a magic link to manage which sports/markets to pull.</p>
-      <label for="email">Admin email</label>
-      <input id="email" type="email" placeholder="you@example.com" autocomplete="email" />
-      <div class="row">
-        <button id="send">Send magic link</button>
-        <span id="status" class="muted"></span>
-      </div>
-      <div class="spacer"></div>
-      <div class="muted">You’ll receive an email from Supabase — check Spam/Promotions if you don’t see it.</div>
-    </div>
 
-    <div id="signedIn" style="display:none">
-      <p class="ok">You’re signed in ✅</p>
-      <div class="row">
-        <button id="signout">Sign out</button>
-        <span class="muted">Keep this tab open — we’ll add the sport/market toggles here next.</span>
-      </div>
-    </div>
+  <div class="card" id="signin">
+    <p>Sign in with a magic link to manage which sports/markets to pull.</p>
+
+    <label for="email">Admin email</label>
+    <input id="email" type="email" placeholder="you@example.com" autocomplete="email" />
+
+    <button id="send">Send magic link</button>
+    <div class="hint">You’ll receive an email from Supabase — check Spam/Promotions if you don’t see it.</div>
+    <div id="status" class="msg"></div>
+  </div>
+
+  <div class="card" id="signedin" style="display:none">
+    <div class="ok">You’re signed in ✅</div>
+    <p>We’ll put the actual controls here next (sport/market toggles, run buttons, etc.).</p>
+    <button id="signout">Sign out</button>
   </div>
 
   <script type="module">
     import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
-    // --- YOUR PROJECT CONFIG ---
-    const SUPABASE_URL = "https://hsrwywximvygorermcz.supabase.co";
+    // 🔧 Your Supabase project and anon key
+    const SUPABASE_URL = "https://hsrwywwxiwmygorermcz.supabase.co";
     const SUPABASE_ANON_KEY =
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzcnd5d3d4aXdteWdvcmVybWN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxMzY0ODMsImV4cCI6MjA3MjcxMjQ4M30.ER5soMiKmgcjLOgBI9eulivTf8XHmqX5YetFnerg3XI";
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // Where the magic link should return after clicking in email
+    const REDIRECT_TO = "https://elgrappo25.github.io/valuevault-admin/admin.html";
 
-    const $ = (id) => document.getElementById(id);
-    const emailInput = $("email");
-    const sendBtn = $("send");
-    const status = $("status");
-    const signedOut = $("signedOut");
-    const signedIn = $("signedIn");
-    const signoutBtn = $("signout");
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, detectSessionInUrl: true }
+    });
 
-    async function setViewFromSession() {
-      const { data: { session } } = await supabase.auth.getSession();
-      const loggedIn = !!session;
-      signedOut.style.display = loggedIn ? "none" : "block";
-      signedIn.style.display = loggedIn ? "block" : "none";
+    const $ = (s) => document.querySelector(s);
+    const emailEl = $("#email");
+    const sendBtn = $("#send");
+    const statusEl = $("#status");
+    const signin = $("#signin");
+    const signedin = $("#signedin");
+    const signoutBtn = $("#signout");
+
+    function showSignedInUI(signedIn) {
+      signin.style.display = signedIn ? "none" : "";
+      signedin.style.display = signedIn ? "" : "none";
     }
 
+    // On load, show the correct state if a session already exists
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      showSignedInUI(!!session);
+    })();
+
     sendBtn.addEventListener("click", async () => {
-      const email = (emailInput.value || "").trim();
-      status.textContent = "";
-      if (!email) { status.textContent = "Enter an email"; status.className = "err"; return; }
-
-      sendBtn.disabled = true;
-      status.className = "muted";
-      status.textContent = "Sending…";
-
-      const redirectTo = new URL(window.location.href);
-      // ensure we land back on admin.html
-      redirectTo.hash = ""; // keep it clean
-
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: redirectTo.toString()
-        }
-      });
-
-      if (error) {
-        status.className = "err";
-        status.textContent = error.message;
-      } else {
-        status.className = "ok";
-        status.textContent = "Magic link sent! Check your email.";
+      statusEl.textContent = "";
+      statusEl.className = "msg";
+      const email = (emailEl.value || "").trim();
+      if (!email) {
+        statusEl.textContent = "Please enter your email.";
+        statusEl.classList.add("err");
+        return;
       }
-      sendBtn.disabled = false;
+      sendBtn.disabled = true;
+      sendBtn.textContent = "Sending…";
+      try {
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: REDIRECT_TO }
+        });
+        if (error) throw error;
+        statusEl.textContent = "Magic link sent! Check your inbox.";
+        statusEl.classList.add("ok");
+      } catch (e) {
+        statusEl.textContent = `Error: ${e.message || e}`;
+        statusEl.classList.add("err");
+      } finally {
+        sendBtn.disabled = false;
+        sendBtn.textContent = "Send magic link";
+      }
     });
 
     signoutBtn.addEventListener("click", async () => {
       await supabase.auth.signOut();
-      await setViewFromSession();
+      showSignedInUI(false);
     });
 
-    // When redirected back from email, Supabase finalizes the session automatically.
-    // Wait a tick then update the UI.
-    (async () => {
-      await setViewFromSession();
-      // also react to auth state changes
-      supabase.auth.onAuthStateChange(() => setViewFromSession());
-    })();
+    // When redirected back with a session in the URL, Supabase handles it (detectSessionInUrl:true).
+    supabase.auth.onAuthStateChange((_evt, session) => {
+      showSignedInUI(!!session);
+    });
   </script>
 </body>
 </html>
